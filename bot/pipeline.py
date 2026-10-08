@@ -4,7 +4,7 @@ import os, json, time, random, shutil
 from . import state
 from .clipper import (get_inbox_videos, download_video, process_clip,
                       probe_video, cleanup_old, CLIPS_DIR, INBOX_DIR)
-from .captioner import generate_caption, get_product
+from .captioner import generate_caption, get_product, get_product_by_trending
 from .tiktok_api import TikTokClient
 from .telegram_flow import send_clip_preview, poll_approval
 
@@ -106,11 +106,31 @@ def process_phase(config, clips):
     return processed
 
 def caption_phase(config, processed):
-    """Phase 3: Generate caption + match produk."""
+    """Phase 3: Generate caption + match produk by trending."""
     print("\n=== PHASE 3: Generate Caption ===")
+    
+    # Detect trending signals sekali sebelum caption
+    trending_signals = None
+    if config.get("trending", {}).get("enabled", False):
+        try:
+            from .tiktok_shop import detect_trending, save_discovered_products
+            from .captioner import load_products
+            products = load_products()
+            product_kws = []
+            for p in products[:5]:
+                product_kws.extend(p.get("keywords", [])[:2])
+            trending_signals = detect_trending(product_keywords=product_kws[:5])
+            save_discovered_products(trending_signals)
+        except Exception as e:
+            print(f"  Trending detection error: {e}")
+    
     captioned = []
     for clip in processed:
-        product = get_product()
+        # Pilih produk: by trending kalau ada, else random
+        if trending_signals:
+            product = get_product_by_trending(trending_signals)
+        else:
+            product = get_product()
         if not product:
             print("  Gak ada produk di config — skip")
             continue

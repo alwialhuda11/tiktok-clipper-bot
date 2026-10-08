@@ -1,24 +1,73 @@
 [
   {
-    "id": "prod_001",
+    "id": "tt_prod_001",
     "name": "Serum Vitamin C Brightening",
+    "product_id": "",
     "category": "skincare",
-    "tiktok_shop_url": "https://shop.tiktok.com/view/product/CONTOH_ID_1",
-    "promo_link": "https://shop.tiktok.com/view/product/CONTOH_ID_1?aff_id=CONTOH",
+    "tiktok_shop_url": "",
+    "promo_link": "",
     "keywords": [
       "serum",
       "vitamin c",
       "glowing",
       "skincare",
-      "brightening"
+      "brightening",
+      "jerawat"
     ],
     "hashtags": [
       "skincare",
       "serum",
       "glowing",
       "tiktokshop",
+      "tiktokmademebuyit",
       "affiliateshop"
     ],
-    "notes": "isi dengan produk affiliate TikTok Shop lo"
+    "notes": "isi promo_link dari TikTok Shop Affiliate Center -> Generate Promotion Link"
+  },
+  {
+    "id": "tt_prod_002",
+    "name": "Parfum Wanita Tahan Lama",
+    "product_id": "",
+    "category": "parfum",
+    "tiktok_shop_url": "",
+    "promo_link": "",
+    "keywords": [
+      "parfum",
+      "perfume",
+      "wangi",
+      "tahan lama",
+      "fragrance"
+    ],
+    "hashtags": [
+      "parfum",
+      "perfume",
+      "wangi",
+      "tiktokshop",
+      "tiktokmademebuyit"
+    ],
+    "notes": ""
+  },
+  {
+    "id": "tt_prod_003",
+    "name": "Hijab Instan Bergo Premium",
+    "product_id": "",
+    "category": "hijab",
+    "tiktok_shop_url": "",
+    "promo_link": "",
+    "keywords": [
+      "hijab",
+      "bergo",
+      "hijab instan",
+      "kerudung",
+      "modest"
+    ],
+    "hashtags": [
+      "hijab",
+      "hijabinstan",
+      "bergo",
+      "tiktokshop",
+      "muslimah"
+    ],
+    "notes": ""
   }
 ]

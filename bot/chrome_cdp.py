@@ -46,10 +46,22 @@ def kill_chrome(port):
         capture_output=True)
 
 def _ws_url(port, want_threads=False):
+    """Ambil WS URL tab yang valid — skip extension/background pages."""
     resp = requests.get(f"http://localhost:{port}/json", timeout=5).json()
+    # Prioritas: tab http(s) yang match want_threads
     for t in resp:
-        if not want_threads or "tiktok" in t.get("url", "").lower():
-            return t.get("webSocketDebuggerUrl")
+        url = t.get("url", "")
+        if not url.startswith("http"):
+            continue
+        if want_threads and "tiktok" not in url.lower():
+            continue
+        ws = t.get("webSocketDebuggerUrl")
+        if ws:
+            return ws
+    # Fallback: tab http(s) mana aja
+    for t in resp:
+        if t.get("url", "").startswith("http") and t.get("webSocketDebuggerUrl"):
+            return t["webSocketDebuggerUrl"]
     return resp[0].get("webSocketDebuggerUrl") if resp else None
 
 def cdp_eval(port, expr, timeout=20):
