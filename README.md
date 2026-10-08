@@ -76,6 +76,59 @@ Lalu ubah `"mode": "mock"` -> `"mode": "live"` di credentials.json.
 - `api` mode: video post + caption (product link di caption)
 - `hybrid` mode: lo post manual + attach basket di app (paling optimal buat affiliate)
 
+
+## Auto Mode (Full Otomatis)
+
+Bot bisa jalan **100% otomatis** tanpa input manual:
+
+```
+1. Auto-search TikTok (CDP Chrome headless)
+   -> cari video produk viral per keyword, filter by views
+        ↓
+2. Auto-download (yt-dlp)
+   -> download video TikTok, no watermark
+        ↓
+3. Process (ffmpeg)
+   -> trim max 60s + re-encode vertikal 9:16
+        ↓
+4. Caption generator
+   -> hook + body + CTA + hashtag + #ad
+        ↓
+5. Telegram approval (optional)
+   -> approve/skip via inline button
+        ↓
+6. Auto-post (CDP web upload)
+   -> upload via TikTok creator center, gak butuh API approval!
+```
+
+### Setup Auto Mode
+
+**1. Enable auto_source di credentials.json:**
+```json
+"auto_source": {
+  "enabled": true,
+  "keywords": ["skincare viral", "serum glowing"],
+  "min_views": 5000,
+  "max_videos_per_keyword": 2
+}
+```
+
+**2. TikTok cookies buat auto-post (CDP web upload):**
+- Export cookies dari browser (EditThisCookie extension)
+- Save sebagai `config/tiktok_cookies.json`
+- Set `posting.post_mode` ke `"auto"` atau `"cdp"`
+
+**3. Tanpa cookies = fallback:**
+- `post_mode: "auto"` -> coba CDP -> gagal -> cek API -> gagal -> manual
+- `post_mode: "manual"` -> bot siapkan semua, lo post sendiri di app
+
+### Kenapa CDP Web Upload?
+
+TikTok Content Posting API butuh **app audit** sebelum post PUBLIC. CDP web upload (Chrome automation) **gak butuh audit** — langsung post sebagai user yang login. Ini yang bikin fully-automated jalan dari hari pertama.
+
+**Product basket (keranjang kuning):** tetap harus manual di app — TikTok gak expose product tagging via web/API. Tapi caption + promo link udah otomatis.
+
+
 ## Commands
 
 ```bash

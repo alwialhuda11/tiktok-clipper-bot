@@ -1,4 +1,4 @@
-"""Pipeline utama: inbox/URL -> process clip -> caption -> approve -> post."""
+"""Pipeline utama: auto-source/inbox -> process -> caption -> approve -> post."""
 import os, json, time, random, shutil
 
 from . import state
@@ -15,25 +15,57 @@ def load_config():
         return json.load(f)
 
 def source_phase(config):
-    """Phase 1: Kumpulkan clip dari inbox/ folder atau URL list."""
+    """Phase 1: Kumpulkan clip dari inbox/ + auto-search TikTok (CDP)."""
     print("\n=== PHASE 1: Source Clips ===")
     clips = []
 
-    # Inbox videos (user drop / forward dari Telegram)
+    # 1a. Inbox videos (user drop / forward dari Telegram)
     inbox_videos = get_inbox_videos()
     for v in inbox_videos:
         clip_id = os.path.basename(v).rsplit(".", 1)[0]
         if not state.is_posted(clip_id):
             clips.append({"path": v, "clip_id": clip_id, "source": "inbox"})
-    print(f"  Inbox videos: {len(inbox_videos)} ({len(clips)} baru)")
+    print(f"  Inbox videos: {len(inbox_videos)} ({len([c for c in clips if c.get('source')=='inbox'])} baru)")
 
-    # URL list (opsional — butuh yt-dlp)
+    # 1b. Auto-search TikTok (CDP) — cari video produk viral
+    auto_cfg = config.get("auto_source", {})
+    if auto_cfg.get("enabled", False):
+        print("  Auto-search TikTok (CDP)...")
+        try:
+            from .auto_source import search_product_videos
+            from .captioner import load_products
+            products = load_products()
+            # Build keywords dari produk + config
+            keywords = auto_cfg.get("keywords", [])
+            if not keywords and products:
+                for p in products[:3]:
+                    keywords.extend(p.get("keywords", [])[:3])
+            if not keywords:
+                keywords = ["skincare viral", "serum glowing", "parfum viral"]
+
+            min_views = auto_cfg.get("min_views", 5000)
+            max_per_kw = auto_cfg.get("max_videos_per_keyword", 2)
+            found = search_product_videos(keywords, min_views=min_views,
+                                          max_videos_per_keyword=max_per_kw)
+            for item in found:
+                vid = item.get("url", "").rstrip("/").split("/")[-1]
+                clip_id = f"auto_{vid}"
+                if not state.is_posted(clip_id):
+                    clips.append({"url": item["url"], "clip_id": clip_id,
+                                  "source": f"auto:{item.get('author', '')}",
+                                  "views": item.get("views", 0)})
+            print(f"  Auto-found: {len(found)} videos")
+        except Exception as e:
+            print(f"  Auto-search error: {e}")
+
+    # 1c. URL list (opsional — butuh yt-dlp)
     url_file = os.path.join(ROOT, "config", "urls.txt")
     if os.path.exists(url_file):
         with open(url_file) as f:
             urls = [u.strip() for u in f if u.strip() and not u.startswith("#")]
         for url in urls:
-            clip_id = "url_" + str(abs(hash(url)))[:10]
+            vid = url.rstrip("/").split("/")[-1].split("?")[0]
+            clip_id = f"url_{vid}"
             if not state.is_posted(clip_id):
                 clips.append({"url": url, "clip_id": clip_id, "source": url[:60]})
         print(f"  URL list: {len(urls)} URLs")
@@ -41,7 +73,7 @@ def source_phase(config):
     return clips
 
 def process_phase(config, clips):
-    """Phase 2: Process clips (trim + vertical)."""
+    """Phase 2: Download + process clips (trim + vertical)."""
     print("\n=== PHASE 2: Process Clips ===")
     clip_cfg = config.get("clipping", {})
     max_dur = clip_cfg.get("max_clip_duration_sec", 60)
@@ -120,10 +152,13 @@ def approval_phase(config, captioned):
     return approved
 
 def post_phase(config, approved):
-    """Phase 5: Post ke TikTok."""
+    """Phase 5: Post ke TikTok (auto CDP > API > manual)."""
     print("\n=== PHASE 5: Post ke TikTok ===")
+    post_mode = config.get("posting", {}).get("post_mode", "auto")
     tiktok = TikTokClient(config.get("tiktok", {}))
-    post_mode = config.get("posting", {}).get("post_mode", "api")
+    tg = config.get("telegram", {})
+    tg_token = tg.get("bot_token", "")
+    tg_chat = tg.get("chat_id", "")
 
     posted = []
     for clip in approved:
@@ -134,55 +169,74 @@ def post_phase(config, approved):
 
         caption = clip.get("caption", "")
         print(f"  Posting: {clip['clip_id']} ({clip.get('duration', '?')}s)")
+        print(f"  Mode: {post_mode}")
 
-        if post_mode == "api":
-            result = tiktok.post_video(video_path, caption)
-            if result:
-                record = {
-                    "clip_id": clip["clip_id"],
-                    "publish_id": result.get("publish_id", ""),
-                    "product_name": clip.get("product_name", ""),
-                    "caption": caption[:200],
-                    "duration": clip.get("duration", 0),
-                    "source": clip.get("source", ""),
-                    "posted_date": time.strftime("%Y-%m-%d %H:%M:%S"),
-                    "mock": result.get("mock", False),
-                }
-                state.save_posted(record)
-                state.record_stat("posted", clip["clip_id"])
-                posted.append(record)
+        result = None
 
-                # Move video ke posted/
-                posted_dir = os.path.join(ROOT, "posted")
-                os.makedirs(posted_dir, exist_ok=True)
-                try:
-                    shutil.move(video_path, os.path.join(posted_dir, os.path.basename(video_path)))
-                except:
-                    pass
-                print(f"  ✅ Posted! publish_id={result.get('publish_id', 'N/A')}")
-            else:
-                print(f"  ✗ Gagal post")
-                state.record_stat("error", clip["clip_id"])
-        else:
-            # hybrid/manual: video tetap di clips/, user post manual
+        # Mode auto: coba CDP dulu (gak butuh API approval)
+        if post_mode in ("auto", "cdp"):
+            try:
+                from .auto_uploader import upload_video
+                result = upload_video(video_path, caption, privacy="public")
+                if result:
+                    result = {"publish_id": f"cdp_{clip['clip_id']}", "status": "COMPLETE", "method": "cdp"}
+            except Exception as e:
+                print(f"  CDP upload error: {e}")
+                result = None
+
+        # Mode api: Content Posting API
+        if not result and post_mode in ("auto", "api"):
+            api_result = tiktok.post_video(video_path, caption)
+            if api_result:
+                result = api_result
+
+        # Mode manual/hybrid: queue untuk manual post
+        if not result or post_mode in ("manual", "hybrid"):
             print(f"  [MANUAL] Video di: {video_path}")
             print(f"  [MANUAL] Caption: {caption[:80]}...")
             print(f"  [MANUAL] Product: {clip.get('product_name', '')}")
             print(f"  [MANUAL] Promo link: {clip.get('promo_link', '')}")
+            # Kirim ke Telegram kalau ada
+            if tg_token and not tg_token.startswith("ISI") and tg_chat:
+                try:
+                    from .telegram_flow import _send_video
+                    _send_video(tg_token, tg_chat, video_path,
+                                f"📱 <b>Manual Post Required</b>\n\n"
+                                f"Caption: {caption[:200]}\n\n"
+                                f"Product: {clip.get('product_name', '')}\n"
+                                f"Promo: {clip.get('promo_link', '')}\n\n"
+                                f"Post di TikTok app + attach product basket!")
+                except:
+                    pass
+            result = {"publish_id": "", "status": "MANUAL_QUEUED", "method": "manual"}
+
+        if result:
             record = {
                 "clip_id": clip["clip_id"],
-                "publish_id": "",
+                "publish_id": result.get("publish_id", ""),
+                "method": result.get("method", post_mode),
                 "product_name": clip.get("product_name", ""),
                 "caption": caption[:200],
                 "duration": clip.get("duration", 0),
                 "source": clip.get("source", ""),
                 "posted_date": time.strftime("%Y-%m-%d %H:%M:%S"),
-                "mode": "manual",
+                "mock": tiktok.mock if hasattr(tiktok, 'mock') else False,
             }
             state.save_posted(record)
-            state.record_stat("manual_queue", clip["clip_id"])
+            state.record_stat("posted", clip["clip_id"])
             posted.append(record)
-            print(f"  ✅ Queued untuk manual post")
+
+            # Move video ke posted/
+            posted_dir = os.path.join(ROOT, "posted")
+            os.makedirs(posted_dir, exist_ok=True)
+            try:
+                shutil.move(video_path, os.path.join(posted_dir, os.path.basename(video_path)))
+            except:
+                pass
+            print(f"  ✅ Done! method={result.get('method', 'N/A')}, id={result.get('publish_id', 'N/A')}")
+        else:
+            print(f"  ✗ Gagal post")
+            state.record_stat("error", clip["clip_id"])
 
     return posted
 
