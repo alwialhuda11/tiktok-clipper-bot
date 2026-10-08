@@ -1,0 +1,32 @@
+# Credentials
+config/credentials.json
+config/urls.txt
+
+# State
+state/*.json
+state/tg_offset.txt
+
+# Clips (large files)
+clips/*.mp4
+clips/*.mov
+clips/*.webm
+inbox/*.mp4
+inbox/*.mov
+inbox/*.webm
+posted/*.mp4
+posted/*.mov
+posted/*.webm
+
+# Logs
+logs/*.log
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+
+# OS
+.DS_Store
+Thumbs.db

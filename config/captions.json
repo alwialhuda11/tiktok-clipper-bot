@@ -1,0 +1,32 @@
+{
+  "hooks": [
+    "POV: kamu nemu produk yang beneran works",
+    "ini yang dicari orang-orang di TikTok Shop",
+    "jangan scroll dulu, cek ini",
+    "produk viral yang worth it banget",
+    "aku nemu ini dan ternyata oke",
+    "yang lagi rame dibeli orang",
+    "ini best seller nya TikTok Shop",
+    "rekomendasi yang gak nyesel",
+    "diskon juga lagi gede",
+    "wajib cek sebelum kehabisan"
+  ],
+  "bodies": [
+    "harga nya masuk akal banget",
+    "rating nya tinggi, review nya banyak",
+    "pengiriman nya cepet",
+    "ada garansi toko juga",
+    "bisa cod juga loh",
+    "stok terbatas, buruan cek",
+    "kualitas nya di atas harga nya",
+    "cocok buat hadiah juga"
+  ],
+  "ctas": [
+    "Klik keranjang kuning di video ya!",
+    "Cek di TikTok Shop sekarang!",
+    "Link produk ada di keranjang kuning!",
+    "Beli sekarang sebelum kehabisan!"
+  ],
+  "template": "{hook} {body}. {cta} #ad #tiktokshop #{category}",
+  "disclosure": "#ad"
+}
